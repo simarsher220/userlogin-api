@@ -1,0 +1,32 @@
+ext {
+    dockerRegistry = 'registry.hub.docker.com'
+}
+
+task buildInformation {
+    def gitSha = "git rev-parse --short HEAD"
+
+    ext.localRepository = "$rootProject.name"
+    ext.remoteRepository = "${dockerRegistry}/codejudge0/user-login"
+    ext.tag = gitSha.execute().text.trim()
+}
+
+task loginToDockerRegistry(type: Exec) {
+    commandLine "docker", "login", "-u", System.getProperty('docker-registry-username'), "-p", System.getProperty('docker-registry-password'), dockerRegistry
+}
+
+task createDockerImage(type: Exec) {
+    project.logger.debug('Creating Docker Image')
+    commandLine "docker", "build", "-t", "${buildInformation.localRepository}:${buildInformation.tag}", "."
+}
+
+task tagAsRemote(type: Exec) {
+    commandLine "docker", "tag", "${buildInformation.localRepository}:${buildInformation.tag}", "${buildInformation.remoteRepository}:latest"
+}
+
+task pushDockerImage(type: Exec, dependsOn: ['tagAsRemote']) {
+    commandLine "docker", "push", "${buildInformation.remoteRepository}:latest"
+}
+
+task publishDockerImage(dependsOn: ['createDockerImage', 'pushDockerImage'])
+
+pushDockerImage.mustRunAfter('createDockerImage')
